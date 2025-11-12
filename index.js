@@ -57,6 +57,16 @@ async function run() {
       res.json(result);
     });
 
+    router.get("/enrolled", async (req, res) => {
+      const { email } = req.query;
+      const enrolled = await enrollmentsCollection
+        .find({ userEmail: email })
+        .toArray();
+      res.json(enrolled);
+    });
+
+    app.use("/api", router);
+
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => console.log(` Server running on port ${PORT}`));
   } catch (error) {
