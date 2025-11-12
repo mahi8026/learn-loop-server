@@ -34,7 +34,14 @@ async function run() {
       res.json(course);
     });
 
-    // ✅ 4. UPDATE
+     router.delete("/courses/:id", async (req, res) => {
+      const result = await coursesCollection.deleteOne({
+        _id: new ObjectId(req.params.id),
+      });
+      res.json(result);
+    });
+
+    
     router.put("/courses/:id", async (req, res) => {
       const update = await coursesCollection.updateOne(
         { _id: new ObjectId(req.params.id) },
