@@ -18,6 +18,16 @@ async function run() {
       res.status(201).json({ success: true, data: result });
     });
 
+    router.get("/courses", async (req, res) => {
+      const { owner, category } = req.query;
+      const filter = {};
+      if (owner) filter.instructorEmail = owner; 
+      if (category) filter.category = category;
+      const courses = await coursesCollection.find(filter).toArray();
+      res.json(courses);
+    });
+
+
     
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => console.log(` Server running on port ${PORT}`));
