@@ -27,6 +27,22 @@ async function run() {
       res.json(courses);
     });
 
+    router.get("/courses/:id", async (req, res) => {
+      const course = await coursesCollection.findOne({
+        _id: new ObjectId(req.params.id),
+      });
+      res.json(course);
+    });
+
+    // ✅ 4. UPDATE
+    router.put("/courses/:id", async (req, res) => {
+      const update = await coursesCollection.updateOne(
+        { _id: new ObjectId(req.params.id) },
+        { $set: req.body }
+      );
+      res.json(update);
+    });
+
 
     
     const PORT = process.env.PORT || 5000;
