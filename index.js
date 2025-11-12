@@ -21,7 +21,7 @@ async function run() {
     router.get("/courses", async (req, res) => {
       const { owner, category } = req.query;
       const filter = {};
-      if (owner) filter.instructorEmail = owner; 
+      if (owner) filter.instructorEmail = owner;
       if (category) filter.category = category;
       const courses = await coursesCollection.find(filter).toArray();
       res.json(courses);
@@ -34,14 +34,6 @@ async function run() {
       res.json(course);
     });
 
-     router.delete("/courses/:id", async (req, res) => {
-      const result = await coursesCollection.deleteOne({
-        _id: new ObjectId(req.params.id),
-      });
-      res.json(result);
-    });
-
-    
     router.put("/courses/:id", async (req, res) => {
       const update = await coursesCollection.updateOne(
         { _id: new ObjectId(req.params.id) },
@@ -50,8 +42,21 @@ async function run() {
       res.json(update);
     });
 
+    router.delete("/courses/:id", async (req, res) => {
+      const result = await coursesCollection.deleteOne({
+        _id: new ObjectId(req.params.id),
+      });
+      res.json(result);
+    });
 
-    
+    router.post("/enroll", async (req, res) => {
+      const result = await enrollmentsCollection.insertOne({
+        ...req.body,
+        enrolledAt: new Date(),
+      });
+      res.json(result);
+    });
+
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => console.log(` Server running on port ${PORT}`));
   } catch (error) {
