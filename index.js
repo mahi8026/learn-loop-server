@@ -18,7 +18,7 @@ async function run() {
     const db = client.db("learnloopDB");
     const coursesCollection = db.collection("courses");
     const enrollmentsCollection = db.collection("enrollments");
-    console.log("✅ Connected to MongoDB");
+    console.log("Connected to MongoDB");
 
     
     const router = express.Router();
@@ -71,6 +71,29 @@ async function run() {
     res.status(500).json({ message: "Server error" });
   }
 });
+
+
+router.delete("/courses/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const query = ObjectId.isValid(id)
+      ? { _id: new ObjectId(id) }
+      : { _id: id };
+
+    const result = await coursesCollection.deleteOne(query);
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ message: "Course not found" });
+    }
+
+    res.json({ message: "Course deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting course:", err);
+    res.status(500).json({ message: "Failed to delete course" });
+  }
+});
+
 
 
      
