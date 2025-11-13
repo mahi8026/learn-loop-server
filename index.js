@@ -1,7 +1,16 @@
+
 const express = require("express");
 const cors = require("cors");
 const { MongoClient, ObjectId } = require("mongodb");
 require("dotenv").config();
+
+const app = express(); 
+app.use(cors());
+app.use(express.json());
+
+
+const uri = process.env.MONGO_URI;
+const client = new MongoClient(uri);
 
 async function run() {
   try {
@@ -9,15 +18,18 @@ async function run() {
     const db = client.db("learnloopDB");
     const coursesCollection = db.collection("courses");
     const enrollmentsCollection = db.collection("enrollments");
-    console.log(" Connected to MongoDB");
+    console.log("✅ Connected to MongoDB");
 
+    
     const router = express.Router();
 
+    
     router.post("/courses", async (req, res) => {
       const result = await coursesCollection.insertOne(req.body);
       res.status(201).json({ success: true, data: result });
     });
 
+    
     router.get("/courses", async (req, res) => {
       const { owner, category } = req.query;
       const filter = {};
@@ -27,6 +39,7 @@ async function run() {
       res.json(courses);
     });
 
+    
     router.get("/courses/:id", async (req, res) => {
       const course = await coursesCollection.findOne({
         _id: new ObjectId(req.params.id),
@@ -34,6 +47,7 @@ async function run() {
       res.json(course);
     });
 
+    
     router.put("/courses/:id", async (req, res) => {
       const update = await coursesCollection.updateOne(
         { _id: new ObjectId(req.params.id) },
@@ -42,13 +56,24 @@ async function run() {
       res.json(update);
     });
 
-    router.delete("/courses/:id", async (req, res) => {
-      const result = await coursesCollection.deleteOne({
-        _id: new ObjectId(req.params.id),
-      });
-      res.json(result);
-    });
+    
+    router.get("/courses/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const query = ObjectId.isValid(id)
+      ? { _id: new ObjectId(id) }
+      : { _id: id };
+    const course = await coursesCollection.findOne(query);
+    if (!course) return res.status(404).json({ message: "Course not found" });
+    res.json(course);
+  } catch (err) {
+    console.error("Error fetching course:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
 
+
+     
     router.post("/enroll", async (req, res) => {
       const result = await enrollmentsCollection.insertOne({
         ...req.body,
@@ -57,6 +82,7 @@ async function run() {
       res.json(result);
     });
 
+ 
     router.get("/enrolled", async (req, res) => {
       const { email } = req.query;
       const enrolled = await enrollmentsCollection
@@ -65,8 +91,10 @@ async function run() {
       res.json(enrolled);
     });
 
+    
     app.use("/api", router);
 
+    
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => console.log(` Server running on port ${PORT}`));
   } catch (error) {
