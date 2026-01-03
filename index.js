@@ -221,6 +221,26 @@ router.get("/enrolled/:email", verifyToken, async (req, res) => {
   res.send(result);
 });
 
+router.get("/admin-stats", verifyToken, verifyAdmin, async (req, res) => {
+  const users = await usersCollection.estimatedDocumentCount();
+  const courses = await coursesCollection.countDocuments({ status: "approved" });
+  const enrollments = await enrollmentsCollection.estimatedDocumentCount();
+
+  // Simple aggregation for revenue if you have a price field
+  const revenueResult = await enrollmentsCollection.aggregate([
+    { $group: { _id: null, total: { $sum: "$price" } } }
+  ]).toArray();
+  
+  const revenue = revenueResult.length > 0 ? revenueResult[0].total : 0;
+
+  res.send({
+    totalUsers: users,
+    totalCourses: courses,
+    totalEnrollments: enrollments,
+    totalRevenue: revenue
+  });
+});
+
 // --- BASE & APP EXPORT ---
 app.use("/api", router);
 
