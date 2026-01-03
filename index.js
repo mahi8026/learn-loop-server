@@ -1,129 +1,276 @@
 const express = require("express");
 const cors = require("cors");
 const { MongoClient, ObjectId } = require("mongodb");
+const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
 const app = express();
 
-// 1. Middleware
+// --- MIDDLEWARES ---
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "https://learn-loop-edcf7.web.app",
-      /\.vercel\.app$/ // Allows Vercel preview deployments
-    ],
+    origin: ["http://localhost:5173", "http://192.168.0.114:5173"],
     credentials: true,
   })
 );
 app.use(express.json());
 
-// 2. MongoDB Connection Caching
 const uri = process.env.MONGO_URI;
 const client = new MongoClient(uri);
 
-let cachedDb = null;
+let usersCollection, coursesCollection, enrollmentsCollection;
 
-async function getDB() {
-  if (cachedDb) return cachedDb;
+// --- AUTH MIDDLEWARES ---
+
+const verifyToken = (req, res, next) => {
+  const authorization = req.headers.authorization;
+  if (!authorization) {
+    return res
+      .status(401)
+      .send({ message: "Unauthorized Access: No Token Provided" });
+  }
+  const token = authorization.split(" ")[1];
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+    if (err) {
+      return res
+        .status(403)
+        .send({ message: "Forbidden Access: Invalid Token" });
+    }
+    req.decoded = decoded;
+    next();
+  });
+};
+
+const verifyAdmin = async (req, res, next) => {
+  const email = req.decoded.email;
+  const user = await usersCollection.findOne({ email }); // Fetching live data
   
-  await client.connect();
-  const db = client.db("learnloopDB");
-  cachedDb = db;
-  return db;
+  if (user?.role !== "admin") {
+    return res.status(403).send({ message: "Forbidden Access: Admin Only" });
+  }
+  next();
+};
+
+async function run() {
+  try {
+    await client.connect();
+    const db = client.db("learnloopDB");
+
+    // Initialize Collections
+    coursesCollection = db.collection("courses");
+    enrollmentsCollection = db.collection("enrollments");
+    usersCollection = db.collection("users");
+
+    console.log("✅ Connected to MongoDB - LearnLoop");
+
+    const router = express.Router();
+
+    // --- JWT GENERATION ---
+    router.post("/jwt", (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: "24h",
+      });
+      res.send({ token });
+    });
+
+    // --- USER ROUTES ---
+
+    // Upsert User on Login
+    router.put("/users", async (req, res) => {
+      const user = req.body;
+      const filter = { email: user.email };
+      const existingUser = await usersCollection.findOne(filter);
+
+      if (existingUser) {
+        const updateDoc = { $set: { name: user.name, photo: user.photo } };
+        const result = await usersCollection.updateOne(filter, updateDoc);
+        return res.json(result);
+      }
+
+      const addNew = {
+        $set: {
+          ...user,
+          role: "student",
+          status: "active",
+          createdAt: new Date(),
+        },
+      };
+      const result = await usersCollection.updateOne(filter, addNew, {
+        upsert: true,
+      });
+      res.json(result);
+    });
+
+    // Get User Role (For Dashboard Navigation)
+    router.get("/users/role/:email", async (req, res) => {
+      const email = req.params.email;
+      const user = await usersCollection.findOne({ email });
+      res.send(user || { role: "student" });
+    });
+
+    router.patch(
+      "/users/role/:id",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+        const { role } = req.body;
+        const filter = { _id: new ObjectId(id) };
+        const updateDoc = { $set: { role: role } };
+
+        const result = await usersCollection.updateOne(filter, updateDoc);
+        res.send(result);
+      }
+    );
+
+    router.patch(
+      "/users/status/:id",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+        const { status } = req.body;
+        const filter = { _id: new ObjectId(id) };
+        const updateDoc = { $set: { status: status } };
+
+        const result = await usersCollection.updateOne(filter, updateDoc);
+        res.send(result);
+      }
+    );
+
+    router.get("/users", verifyToken, verifyAdmin, async (req, res) => {
+      const result = await usersCollection.find().toArray();
+      res.send(result);
+    });
+
+    // --- COURSE ROUTES ---
+
+    // Public All Courses / Instructor Drafts
+    router.get("/courses", async (req, res) => {
+      try {
+        const { owner, category } = req.query;
+        let query = {};
+
+        if (owner) {
+          query.instructorEmail = owner; // For Instructor Dashboard
+        } else {
+          query.status = "approved"; // For Public Listing Page
+        }
+
+        if (category && category !== "all") {
+          query.category = category;
+        }
+
+        const result = await coursesCollection.find(query).toArray();
+        res.send(result);
+      } catch (err) {
+        res.status(500).send({ message: "Failed to fetch courses" });
+      }
+    });
+
+    // Single Course Details (Publicly accessible)
+    router.get("/courses/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = ObjectId.isValid(id)
+        ? { _id: new ObjectId(id) }
+        : { _id: id };
+      const course = await coursesCollection.findOne(query);
+      res.json(course);
+    });
+
+    // Add New Course (Requirement 6)
+    router.post("/courses", verifyToken, async (req, res) => {
+      const course = {
+        ...req.body,
+        status: "pending",
+        totalEnrolled: 0,
+        createdAt: new Date(),
+      };
+      const result = await coursesCollection.insertOne(course);
+      res.status(201).json(result);
+    });
+
+    // Admin: Change Status & Add Feedback (Requirement 8)
+    router.patch(
+      "/courses/status/:id",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const { id } = req.params;
+        const { status, feedback } = req.body;
+        const result = await coursesCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: { status, feedback: feedback || "" } }
+        );
+        res.json(result);
+      }
+    );
+
+    // --- ENROLLMENT ROUTES (Requirement 7) ---
+
+    router.post("/enroll", verifyToken, async (req, res) => {
+      const enrollment = req.body;
+      try {
+        // Record enrollment
+        const result = await enrollmentsCollection.insertOne({
+          ...enrollment,
+          enrolledAt: new Date(),
+        });
+
+        // Atomic Increment for Popularity Sorting
+        await coursesCollection.updateOne(
+          { _id: new ObjectId(enrollment.courseId) },
+          { $inc: { totalEnrolled: 1 } }
+        );
+
+        res.json({ success: true, result });
+      } catch (err) {
+        res.status(500).send({ message: "Enrollment failed" });
+      }
+    });
+
+    // Get My Enrolled Courses
+    router.get("/enrolled/:email", verifyToken, async (req, res) => {
+      const email = req.params.email;
+      if (req.decoded.email !== email) {
+        return res.status(403).send({ message: "Forbidden Access" });
+      }
+
+      const result = await enrollmentsCollection
+        .aggregate([
+          { $match: { userEmail: email } },
+          {
+            $lookup: {
+              from: "courses",
+              let: { courseId: "$courseId" },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: { $eq: ["$_id", { $toObjectId: "$$courseId" }] },
+                  },
+                },
+              ],
+              as: "courseDetails",
+            },
+          },
+          { $unwind: "$courseDetails" },
+        ])
+        .toArray();
+
+      res.send(result);
+    });
+
+    // --- START SERVER ---
+    app.use("/api", router);
+
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`LearnLoop Server running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error("Database Connection Error:", error);
+  }
 }
 
-// 3. Routes
-const router = express.Router();
-
-// Health Check
-app.get("/", (req, res) => res.send("LearnLoop API is live and connected!"));
-
-// POST: Create a course
-router.post("/courses", async (req, res) => {
-  const db = await getDB();
-  const result = await db.collection("courses").insertOne(req.body);
-  res.status(201).json(result);
-});
-
-// GET: All courses (with filtering)
-router.get("/courses", async (req, res) => {
-  const db = await getDB();
-  const { owner, category } = req.query;
-
-  const filter = {};
-  if (owner) filter.instructorEmail = owner;
-  if (category) filter.category = category;
-
-  const courses = await db.collection("courses").find(filter).toArray();
-  res.json(courses);
-});
-
-// GET: Single course by ID
-router.get("/courses/:id", async (req, res) => {
-  const db = await getDB();
-  const { id } = req.params;
-
-  try {
-    const query = ObjectId.isValid(id) ? { _id: new ObjectId(id) } : { _id: id };
-    const course = await db.collection("courses").findOne(query);
-    if (!course) return res.status(404).json({ message: "Course not found" });
-    res.json(course);
-  } catch (error) {
-    res.status(500).json({ message: "Error fetching course" });
-  }
-});
-
-// PUT: Update course
-router.put("/courses/:id", async (req, res) => {
-  const db = await getDB();
-  const { id } = req.params;
-  
-  const result = await db.collection("courses").updateOne(
-    { _id: new ObjectId(id) },
-    { $set: req.body }
-  );
-  res.json(result);
-});
-
-// DELETE: Course
-router.delete("/courses/:id", async (req, res) => {
-  const db = await getDB();
-  const { id } = req.params;
-
-  const result = await db.collection("courses").deleteOne({
-    _id: new ObjectId(id),
-  });
-
-  if (!result.deletedCount) {
-    return res.status(404).json({ message: "Course not found" });
-  }
-  res.json({ message: "Course deleted successfully" });
-});
-
-// POST: Enrollment
-router.post("/enroll", async (req, res) => {
-  const db = await getDB();
-  const result = await db.collection("enrollments").insertOne({
-    ...req.body,
-    enrolledAt: new Date(),
-  });
-  res.json(result);
-});
-
-// GET: User Enrolled courses
-router.get("/enrolled", async (req, res) => {
-  const db = await getDB();
-  const { email } = req.query;
-  const enrolled = await db
-    .collection("enrollments")
-    .find({ userEmail: email })
-    .toArray();
-  res.json(enrolled);
-});
-
-// 4. Mount Router
-app.use("/api", router);
-
-// 5. Export for Vercel (No app.listen needed for production)
-module.exports = app;
+run().catch(console.dir);
