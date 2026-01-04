@@ -17,7 +17,6 @@ app.use(cors(corsOptions));
 
 app.options("*", cors(corsOptions));
 
-
 app.use(express.json());
 
 const uri = process.env.MONGO_URI;
@@ -44,7 +43,9 @@ app.use(async (req, res, next) => {
     await connectDB();
     next();
   } catch (error) {
-    res.status(500).send({ message: "Internal Server Error: Database Connection Failed" });
+    res
+      .status(500)
+      .send({ message: "Internal Server Error: Database Connection Failed" });
   }
 });
 
@@ -52,12 +53,16 @@ app.use(async (req, res, next) => {
 const verifyToken = (req, res, next) => {
   const authorization = req.headers.authorization;
   if (!authorization) {
-    return res.status(401).send({ message: "Unauthorized Access: No Token Provided" });
+    return res
+      .status(401)
+      .send({ message: "Unauthorized Access: No Token Provided" });
   }
   const token = authorization.split(" ")[1];
   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
     if (err) {
-      return res.status(403).send({ message: "Forbidden Access: Invalid Token" });
+      return res
+        .status(403)
+        .send({ message: "Forbidden Access: Invalid Token" });
     }
     req.decoded = decoded;
     next();
@@ -79,7 +84,9 @@ const router = express.Router();
 // 1. JWT Generation
 router.post("/jwt", (req, res) => {
   const user = req.body;
-  const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: "24h" });
+  const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+    expiresIn: "24h",
+  });
   res.send({ token });
 });
 
@@ -103,7 +110,9 @@ router.put("/users", async (req, res) => {
       createdAt: new Date(),
     },
   };
-  const result = await usersCollection.updateOne(filter, addNew, { upsert: true });
+  const result = await usersCollection.updateOne(filter, addNew, {
+    upsert: true,
+  });
   res.json(result);
 });
 
@@ -121,16 +130,27 @@ router.get("/users", verifyToken, verifyAdmin, async (req, res) => {
 router.patch("/users/role/:id", verifyToken, verifyAdmin, async (req, res) => {
   const id = req.params.id;
   const { role } = req.body;
-  const result = await usersCollection.updateOne({ _id: new ObjectId(id) }, { $set: { role } });
+  const result = await usersCollection.updateOne(
+    { _id: new ObjectId(id) },
+    { $set: { role } }
+  );
   res.send(result);
 });
 
-router.patch("/users/status/:id", verifyToken, verifyAdmin, async (req, res) => {
-  const id = req.params.id;
-  const { status } = req.body;
-  const result = await usersCollection.updateOne({ _id: new ObjectId(id) }, { $set: { status } });
-  res.send(result);
-});
+router.patch(
+  "/users/status/:id",
+  verifyToken,
+  verifyAdmin,
+  async (req, res) => {
+    const id = req.params.id;
+    const { status } = req.body;
+    const result = await usersCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { status } }
+    );
+    res.send(result);
+  }
+);
 
 // 3. Course Routes
 router.get("/courses", async (req, res) => {
@@ -148,37 +168,55 @@ router.get("/courses", async (req, res) => {
     const result = await coursesCollection.find(query).toArray();
     res.send(result);
   } catch (err) {
+    console.error("Error fetching courses:", err);
     res.status(500).send({ message: "Failed to fetch courses" });
   }
 });
 
 router.get("/courses/:id", async (req, res) => {
-  const id = req.params.id;
-  const query = ObjectId.isValid(id) ? { _id: new ObjectId(id) } : { _id: id };
-  const course = await coursesCollection.findOne(query);
-  res.json(course);
+  try {
+    const id = req.params.id;
+    const query = ObjectId.isValid(id)
+      ? { _id: new ObjectId(id) }
+      : { _id: id };
+    const course = await coursesCollection.findOne(query);
+    res.json(course);
+  } catch (error) {
+    console.error("Error fetching course:", error);
+    res.status(500).send({ message: "Failed to fetch course" });
+  }
 });
 
 router.post("/courses", verifyToken, async (req, res) => {
-  const course = {
-    ...req.body,
-    status: "pending",
-    totalEnrolled: 0,
-    createdAt: new Date(),
-  };
-  const result = await coursesCollection.insertOne(course);
-  res.status(201).json(result);
+  try {
+    const course = {
+      ...req.body,
+      status: "pending",
+      totalEnrolled: 0,
+      createdAt: new Date(),
+    };
+    const result = await coursesCollection.insertOne(course);
+    res.status(201).json(result);
+  } catch (error) {
+    console.error("Error creating course:", error);
+    res.status(500).send({ message: "Failed to create course" });
+  }
 });
 
-router.patch("/courses/status/:id", verifyToken, verifyAdmin, async (req, res) => {
-  const { id } = req.params;
-  const { status, feedback } = req.body;
-  const result = await coursesCollection.updateOne(
-    { _id: new ObjectId(id) },
-    { $set: { status, feedback: feedback || "" } }
-  );
-  res.json(result);
-});
+router.patch(
+  "/courses/status/:id",
+  verifyToken,
+  verifyAdmin,
+  async (req, res) => {
+    const { id } = req.params;
+    const { status, feedback } = req.body;
+    const result = await coursesCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { status, feedback: feedback || "" } }
+    );
+    res.json(result);
+  }
+);
 
 // 4. Enrollment Routes
 router.post("/enroll", verifyToken, async (req, res) => {
@@ -228,26 +266,28 @@ router.get("/enrolled/:email", verifyToken, async (req, res) => {
 
 router.get("/admin-stats", verifyToken, verifyAdmin, async (req, res) => {
   const users = await usersCollection.estimatedDocumentCount();
-  const courses = await coursesCollection.countDocuments({ status: "approved" });
+  const courses = await coursesCollection.countDocuments({
+    status: "approved",
+  });
   const enrollments = await enrollmentsCollection.estimatedDocumentCount();
 
   // Simple aggregation for revenue if you have a price field
-  const revenueResult = await enrollmentsCollection.aggregate([
-    { $group: { _id: null, total: { $sum: "$price" } } }
-  ]).toArray();
-  
+  const revenueResult = await enrollmentsCollection
+    .aggregate([{ $group: { _id: null, total: { $sum: "$price" } } }])
+    .toArray();
+
   const revenue = revenueResult.length > 0 ? revenueResult[0].total : 0;
 
   res.send({
     totalUsers: users,
     totalCourses: courses,
     totalEnrollments: enrollments,
-    totalRevenue: revenue
+    totalRevenue: revenue,
   });
 });
 
 // --- BASE & APP EXPORT ---
-app.use("/", router);
+app.use("/api", router);
 
 app.get("/", (req, res) => {
   res.send("LearnLoop Server is running!");
@@ -255,8 +295,8 @@ app.get("/", (req, res) => {
 
 // Only listen locally, Vercel uses the exported module
 //if (process.env.NODE_ENV !== "production") {
-  //const PORT = process.env.PORT || 5000;
-  //app.listen(PORT, () => console.log(`Server running locally on port ${PORT}`));
+//const PORT = process.env.PORT || 5000;
+//app.listen(PORT, () => console.log(`Server running locally on port ${PORT}`));
 //}
 
 module.exports = app;
