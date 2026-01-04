@@ -7,17 +7,19 @@ require("dotenv").config();
 const app = express();
 
 // --- MIDDLEWARES ---
-app.use(
-  cors({
-    origin: "https://learn-loop-edcf7.web.app",
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"]
-  })
-);
+app.use(cors({
+  origin: "https://learn-loop-edcf7.web.app",
+  credentials: true
+}));
 
-// Move this ABOVE your routes but BELOW the cors() config
-app.options("*", cors());
+// Add this explicit handler for OPTIONS
+app.options('*', (req, res) => {
+  res.header('Access-Control-Allow-Origin', 'https://learn-loop-edcf7.web.app');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  return res.status(200).send();
+});
 app.use(express.json());
 
 const uri = process.env.MONGO_URI;
@@ -254,9 +256,9 @@ app.get("/", (req, res) => {
 });
 
 // Only listen locally, Vercel uses the exported module
-if (process.env.NODE_ENV !== "production") {
-  const PORT = process.env.PORT || 5000;
-  app.listen(PORT, () => console.log(`Server running locally on port ${PORT}`));
-}
+//if (process.env.NODE_ENV !== "production") {
+  //const PORT = process.env.PORT || 5000;
+  //app.listen(PORT, () => console.log(`Server running locally on port ${PORT}`));
+//}
 
 module.exports = app;
