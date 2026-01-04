@@ -7,29 +7,12 @@ require("dotenv").config();
 const app = express();
 
 // --- MIDDLEWARES ---
-app.use((req, res, next) => {
-  const allowedOrigins = [
-    "https://learn-loop-edcf7.web.app",
-    "https://learn-loop-edcf7.firebaseapp.com",
-    "http://localhost:5173"
-  ];
-  const origin = req.headers.origin;
-
-  if (allowedOrigins.includes(origin)) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-  }
-
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept");
-
-  // IMMEDIATELY handle preflight (OPTIONS) requests
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-
-  next();
-});
+const corsOptions = {
+  origin: "https://learn-loop-edcf7.web.app",
+  credentials: true,
+  optionSuccessStatus: 200
+};
+app.use(cors(corsOptions));
 
 
 app.use(express.json());
