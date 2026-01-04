@@ -9,7 +9,7 @@ const app = express();
 // --- MIDDLEWARES ---
 app.use(
   cors({
-    origin: ["http://localhost:5173", "http://192.168.0.114:5173", "https://your-frontend-domain.vercel.app"],
+    origin: ["http://localhost:5173", "http://192.168.0.114:5173", "https://learn-loop-edcf7.web.app"],
     credentials: true,
   })
 );
