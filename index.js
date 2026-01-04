@@ -28,24 +28,35 @@ let db, usersCollection, coursesCollection, enrollmentsCollection;
 // --- DATABASE CONNECTION HELPER ---
 async function connectDB() {
   if (!db) {
-    await client.connect();
-    db = client.db("learnloopDB");
-    usersCollection = db.collection("users");
-    coursesCollection = db.collection("courses");
-    enrollmentsCollection = db.collection("enrollments");
-    console.log("✅ Connected to MongoDB");
+    try {
+      console.log("Attempting to connect to MongoDB...");
+      await client.connect();
+      db = client.db("learnloopDB");
+      usersCollection = db.collection("users");
+      coursesCollection = db.collection("courses");
+      enrollmentsCollection = db.collection("enrollments");
+      console.log("✅ Connected to MongoDB successfully");
+    } catch (error) {
+      console.error("❌ MongoDB connection failed:", error);
+      throw error;
+    }
   }
 }
 
 // Ensure DB is connected before processing any request
 app.use(async (req, res, next) => {
   try {
+    console.log(`Processing request: ${req.method} ${req.path}`);
     await connectDB();
     next();
   } catch (error) {
+    console.error("Database connection error:", error);
     res
       .status(500)
-      .send({ message: "Internal Server Error: Database Connection Failed" });
+      .send({
+        message: "Internal Server Error: Database Connection Failed",
+        error: error.message,
+      });
   }
 });
 
@@ -342,6 +353,15 @@ app.use("/api", router);
 
 app.get("/", (req, res) => {
   res.send("LearnLoop Server is running!");
+});
+
+// Test endpoint to verify API is working
+app.get("/api/test", (req, res) => {
+  res.json({
+    message: "API is working!",
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || "development",
+  });
 });
 
 // Only listen locally, Vercel uses the exported module
