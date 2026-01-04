@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+require("dotenv").config();
 
 const app = express();
 
@@ -7,7 +8,7 @@ const app = express();
 const corsOptions = {
   origin: "https://learn-loop-edcf7.web.app",
   credentials: true,
-  optionSuccessStatus: 200,
+  optionsSuccessStatus: 200,
 };
 
 app.use(cors(corsOptions));
@@ -16,7 +17,7 @@ app.use(express.json());
 
 // Basic test routes
 app.get("/", (req, res) => {
-  res.send("LearnLoop Server is running!");
+  res.json({ message: "LearnLoop Server is running!" });
 });
 
 app.get("/api/test", (req, res) => {
@@ -29,4 +30,5 @@ app.get("/api/test", (req, res) => {
   });
 });
 
+// Export for Vercel
 module.exports = app;
