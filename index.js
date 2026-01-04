@@ -70,12 +70,17 @@ const verifyToken = (req, res, next) => {
 };
 
 const verifyAdmin = async (req, res, next) => {
-  const email = req.decoded.email;
-  const user = await usersCollection.findOne({ email });
-  if (user?.role !== "admin") {
-    return res.status(403).send({ message: "Forbidden Access: Admin Only" });
+  try {
+    const email = req.decoded.email;
+    const user = await usersCollection.findOne({ email });
+    if (user?.role !== "admin") {
+      return res.status(403).send({ message: "Forbidden Access: Admin Only" });
+    }
+    next();
+  } catch (error) {
+    console.error("Error verifying admin:", error);
+    res.status(500).send({ message: "Failed to verify admin status" });
   }
-  next();
 };
 
 // --- ROUTES ---
@@ -83,58 +88,83 @@ const router = express.Router();
 
 // 1. JWT Generation
 router.post("/jwt", (req, res) => {
-  const user = req.body;
-  const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
-    expiresIn: "24h",
-  });
-  res.send({ token });
+  try {
+    const user = req.body;
+    const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+      expiresIn: "24h",
+    });
+    res.send({ token });
+  } catch (error) {
+    console.error("Error generating JWT:", error);
+    res.status(500).send({ message: "Failed to generate token" });
+  }
 });
 
 // 2. User Routes
 router.put("/users", async (req, res) => {
-  const user = req.body;
-  const filter = { email: user.email };
-  const existingUser = await usersCollection.findOne(filter);
+  try {
+    const user = req.body;
+    const filter = { email: user.email };
+    const existingUser = await usersCollection.findOne(filter);
 
-  if (existingUser) {
-    const updateDoc = { $set: { name: user.name, photo: user.photo } };
-    const result = await usersCollection.updateOne(filter, updateDoc);
-    return res.json(result);
+    if (existingUser) {
+      const updateDoc = { $set: { name: user.name, photo: user.photo } };
+      const result = await usersCollection.updateOne(filter, updateDoc);
+      return res.json(result);
+    }
+
+    const addNew = {
+      $set: {
+        ...user,
+        role: "student",
+        status: "active",
+        createdAt: new Date(),
+      },
+    };
+    const result = await usersCollection.updateOne(filter, addNew, {
+      upsert: true,
+    });
+    res.json(result);
+  } catch (error) {
+    console.error("Error updating user:", error);
+    res.status(500).send({ message: "Failed to update user" });
   }
-
-  const addNew = {
-    $set: {
-      ...user,
-      role: "student",
-      status: "active",
-      createdAt: new Date(),
-    },
-  };
-  const result = await usersCollection.updateOne(filter, addNew, {
-    upsert: true,
-  });
-  res.json(result);
 });
 
 router.get("/users/role/:email", async (req, res) => {
-  const email = req.params.email;
-  const user = await usersCollection.findOne({ email });
-  res.send(user || { role: "student" });
+  try {
+    const email = req.params.email;
+    const user = await usersCollection.findOne({ email });
+    res.send(user || { role: "student" });
+  } catch (error) {
+    console.error("Error fetching user role:", error);
+    res.status(500).send({ message: "Failed to fetch user role" });
+  }
 });
 
 router.get("/users", verifyToken, verifyAdmin, async (req, res) => {
-  const result = await usersCollection.find().toArray();
-  res.send(result);
+  try {
+    const result = await usersCollection.find().toArray();
+    res.send(result);
+  } catch (error) {
+    console.error("Error fetching users:", error);
+    res.status(500).send({ message: "Failed to fetch users" });
+  }
 });
 
 router.patch("/users/role/:id", verifyToken, verifyAdmin, async (req, res) => {
-  const id = req.params.id;
-  const { role } = req.body;
-  const result = await usersCollection.updateOne(
-    { _id: new ObjectId(id) },
-    { $set: { role } }
-  );
-  res.send(result);
+  try {
+    const id = req.params.id;
+    const { role } = req.body;
+    const result = await usersCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { role } }
+    );
+    res.send(result);
+  } catch (error) {
+    console.error("Error updating user role:", error);
+    res.status(500).send({ message: "Failed to update user role" });
+  }
 });
 
 router.patch(
@@ -142,13 +172,18 @@ router.patch(
   verifyToken,
   verifyAdmin,
   async (req, res) => {
-    const id = req.params.id;
-    const { status } = req.body;
-    const result = await usersCollection.updateOne(
-      { _id: new ObjectId(id) },
-      { $set: { status } }
-    );
-    res.send(result);
+    try {
+      const id = req.params.id;
+      const { status } = req.body;
+      const result = await usersCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { status } }
+      );
+      res.send(result);
+    } catch (error) {
+      console.error("Error updating user status:", error);
+      res.status(500).send({ message: "Failed to update user status" });
+    }
   }
 );
 
@@ -208,20 +243,25 @@ router.patch(
   verifyToken,
   verifyAdmin,
   async (req, res) => {
-    const { id } = req.params;
-    const { status, feedback } = req.body;
-    const result = await coursesCollection.updateOne(
-      { _id: new ObjectId(id) },
-      { $set: { status, feedback: feedback || "" } }
-    );
-    res.json(result);
+    try {
+      const { id } = req.params;
+      const { status, feedback } = req.body;
+      const result = await coursesCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { status, feedback: feedback || "" } }
+      );
+      res.json(result);
+    } catch (error) {
+      console.error("Error updating course status:", error);
+      res.status(500).send({ message: "Failed to update course status" });
+    }
   }
 );
 
 // 4. Enrollment Routes
 router.post("/enroll", verifyToken, async (req, res) => {
-  const enrollment = req.body;
   try {
+    const enrollment = req.body;
     const result = await enrollmentsCollection.insertOne({
       ...enrollment,
       enrolledAt: new Date(),
@@ -232,58 +272,69 @@ router.post("/enroll", verifyToken, async (req, res) => {
     );
     res.json({ success: true, result });
   } catch (err) {
+    console.error("Error enrolling user:", err);
     res.status(500).send({ message: "Enrollment failed" });
   }
 });
 
 router.get("/enrolled/:email", verifyToken, async (req, res) => {
-  const email = req.params.email;
-  if (req.decoded.email !== email) {
-    return res.status(403).send({ message: "Forbidden Access" });
-  }
-  const result = await enrollmentsCollection
-    .aggregate([
-      { $match: { userEmail: email } },
-      {
-        $lookup: {
-          from: "courses",
-          let: { courseId: "$courseId" },
-          pipeline: [
-            {
-              $match: {
-                $expr: { $eq: ["$_id", { $toObjectId: "$$courseId" }] },
+  try {
+    const email = req.params.email;
+    if (req.decoded.email !== email) {
+      return res.status(403).send({ message: "Forbidden Access" });
+    }
+    const result = await enrollmentsCollection
+      .aggregate([
+        { $match: { userEmail: email } },
+        {
+          $lookup: {
+            from: "courses",
+            let: { courseId: "$courseId" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: { $eq: ["$_id", { $toObjectId: "$$courseId" }] },
+                },
               },
-            },
-          ],
-          as: "courseDetails",
+            ],
+            as: "courseDetails",
+          },
         },
-      },
-      { $unwind: "$courseDetails" },
-    ])
-    .toArray();
-  res.send(result);
+        { $unwind: "$courseDetails" },
+      ])
+      .toArray();
+    res.send(result);
+  } catch (error) {
+    console.error("Error fetching enrolled courses:", error);
+    res.status(500).send({ message: "Failed to fetch enrolled courses" });
+  }
 });
 
 router.get("/admin-stats", verifyToken, verifyAdmin, async (req, res) => {
-  const users = await usersCollection.estimatedDocumentCount();
-  const courses = await coursesCollection.countDocuments({
-    status: "approved",
-  });
-  const enrollments = await enrollmentsCollection.estimatedDocumentCount();
+  try {
+    const users = await usersCollection.estimatedDocumentCount();
+    const courses = await coursesCollection.countDocuments({
+      status: "approved",
+    });
+    const enrollments = await enrollmentsCollection.estimatedDocumentCount();
 
-  // Simple aggregation for revenue if you have a price field
-  const revenueResult = await enrollmentsCollection
-    .aggregate([{ $group: { _id: null, total: { $sum: "$price" } } }])
-    .toArray();
+    // Simple aggregation for revenue if you have a price field
+    const revenueResult = await enrollmentsCollection
+      .aggregate([{ $group: { _id: null, total: { $sum: "$price" } } }])
+      .toArray();
 
-  const revenue = revenueResult.length > 0 ? revenueResult[0].total : 0;
+    const revenue = revenueResult.length > 0 ? revenueResult[0].total : 0;
 
-  res.send({
-    totalUsers: users,
-    totalCourses: courses,
-    totalEnrollments: enrollments,
-    totalRevenue: revenue,
-  });
+    res.send({
+      totalUsers: users,
+      totalCourses: courses,
+      totalEnrollments: enrollments,
+      totalRevenue: revenue,
+    });
+  } catch (error) {
+    console.error("Error fetching admin stats:", error);
+    res.status(500).send({ message: "Failed to fetch admin statistics" });
+  }
 });
 
 // --- BASE & APP EXPORT ---
