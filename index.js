@@ -10,11 +10,11 @@ const app = express();
 const corsOptions = {
   origin: "https://learn-loop-edcf7.web.app",
   credentials: true,
-  optionSuccessStatus: 200
+  optionSuccessStatus: 200,
 };
+
 app.use(cors(corsOptions));
 
-// ADD THIS LINE BELOW
 app.options("*", cors(corsOptions));
 
 
