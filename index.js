@@ -8,19 +8,30 @@ const app = express();
 
 // --- MIDDLEWARES ---
 app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "https://learn-loop-edcf7.web.app");
-  res.header("Access-Control-Allow-Credentials", "true");
-  next();
-})
+  const allowedOrigins = [
+    "https://learn-loop-edcf7.web.app",
+    "https://learn-loop-edcf7.firebaseapp.com",
+    "http://localhost:5173"
+  ];
+  const origin = req.headers.origin;
 
-// Add this explicit handler for OPTIONS
-app.options('*', (req, res) => {
-  res.header('Access-Control-Allow-Origin', 'https://learn-loop-edcf7.web.app');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  return res.status(200).send();
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
+
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept");
+
+  // IMMEDIATELY handle preflight (OPTIONS) requests
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+
+  next();
 });
+
+
 app.use(express.json());
 
 const uri = process.env.MONGO_URI;
