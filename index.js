@@ -9,7 +9,18 @@ const app = express();
 // --- MIDDLEWARES ---
 app.use(
   cors({
-    origin: ["http://localhost:5173", "http://192.168.0.114:5173", "https://learn-loop-edcf7.web.app"],
+    origin: function (origin, callback) {
+      const allowedOrigins = [
+        "http://localhost:5173",
+        "https://learn-loop-edcf7.web.app",
+        "https://learn-loop-edcf7.firebaseapp.com"
+      ];
+      if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
   })
 );
