@@ -7,10 +7,11 @@ require("dotenv").config();
 const app = express();
 
 // --- MIDDLEWARES ---
-app.use(cors({
-  origin: "https://learn-loop-edcf7.web.app",
-  credentials: true
-}));
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "https://learn-loop-edcf7.web.app");
+  res.header("Access-Control-Allow-Credentials", "true");
+  next();
+})
 
 // Add this explicit handler for OPTIONS
 app.options('*', (req, res) => {
