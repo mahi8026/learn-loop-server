@@ -14,6 +14,9 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
+// ADD THIS LINE BELOW
+app.options("*", cors(corsOptions));
+
 
 app.use(express.json());
 
@@ -244,7 +247,7 @@ router.get("/admin-stats", verifyToken, verifyAdmin, async (req, res) => {
 });
 
 // --- BASE & APP EXPORT ---
-app.use("/api", router);
+app.use("/", router);
 
 app.get("/", (req, res) => {
   res.send("LearnLoop Server is running!");
