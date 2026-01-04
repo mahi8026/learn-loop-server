@@ -9,21 +9,14 @@ const app = express();
 // --- MIDDLEWARES ---
 app.use(
   cors({
-    origin: function (origin, callback) {
-      const allowedOrigins = [
-        "http://localhost:5173",
-        "https://learn-loop-edcf7.web.app",
-        "https://learn-loop-edcf7.firebaseapp.com"
-      ];
-      if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
+    origin: "https://learn-loop-edcf7.web.app",
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"]
   })
 );
+
+// Move this ABOVE your routes but BELOW the cors() config
 app.options("*", cors());
 app.use(express.json());
 
